@@ -77,11 +77,44 @@ app.post('/api/leads', (req, res) => {
   });
 });
 
-// Endpoint alternativo para leads (por si acaso)
+// Endpoint alternativo para leads (CORREGIDO)
 app.post('/leads', (req, res) => {
-  // Redirigir a la ruta principal
-  req.url = '/api/leads';
-  app._router.handle(req, res);
+  console.log('Lead recibido en /leads:', req.body);
+  
+  const { name, phone, email, interest, source, timestamp } = req.body;
+  
+  // Validación básica
+  if (!name || !phone) {
+    return res.status(400).json({
+      success: false,
+      message: 'Nombre y teléfono son requeridos',
+      error: 'Missing required fields'
+    });
+  }
+  
+  // Log del lead para seguimiento
+  console.log(`
+    ===== NUEVO LEAD (via /leads) =====
+    Nombre: ${name}
+    Teléfono: ${phone}
+    Email: ${email || 'No proporcionado'}
+    Interés: ${interest || 'No especificado'}
+    Fuente: ${source || 'No especificada'}
+    Fecha: ${timestamp || new Date().toISOString()}
+    ======================
+  `);
+  
+  res.status(200).json({
+    success: true,
+    message: 'Lead recibido exitosamente',
+    data: { 
+      name, 
+      phone, 
+      email: email || null,
+      interest: interest || null,
+      received_at: new Date().toISOString()
+    }
+  });
 });
 
 // Manejo de rutas no encontradas
