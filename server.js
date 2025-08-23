@@ -1,55 +1,118 @@
-require('dotenv').config();
 const express = require('express');
-const bodyParser = require('body-parser');
 const cors = require('cors');
-const axios = require('axios');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(cors());
+// Middleware
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// **IMPORTANTE:** Reemplaza esta URL con la URL de tu App Script de Google Sheets.
-// La URL de tu App Script va aquí. Es el 'enlace' que el servidor de Node.js usa para hablar con tu hoja de Google. Se obtiene al desplegar el script.
-const GOOGLE_SHEET_APP_URL = 'https://script.google.com/macros/s/AKfycby1k60FcOM8WPoTNloHQZYhDY49v76dZw16pyx0ckCQt1PABzKETrwCvEHLJAtm1tLu/exec';
-
-// Ruta para recibir los datos del cliente desde tu bot.
-app.post('/save-client-data', async (req, res) => {
-  const { name, email, phone, message } = req.body;
-
-  console.log('Datos recibidos del bot:', { name, email, phone, message });
-
-  if (!name || !email) {
-    return res.status(400).json({ error: 'Faltan datos del cliente.' });
-  }
-
-  try {
-    // Envía los datos a Google Sheets.
-    const response = await axios.post(GOOGLE_SHEET_APP_URL, {
-      name,
-      email,
-      phone,
-      message,
-    });
-
-    console.log('Respuesta de Google Sheets:', response.data);
-
-    res.status(200).json({
-      message: 'Datos del cliente guardados en Google Sheets.',
-      gs_response: response.data,
-    });
-  } catch (error) {
-    console.error('Error al enviar datos a Google Sheets:', error);
-    res.status(500).json({
-      message: 'Error en el servidor al guardar los datos.',
-      error: error.message,
-    });
-  }
+// Ruta raíz
+app.get('/', (req, res) => {
+  res.json({
+    message: '🚗 TU Dealer Amigo API',
+    status: 'Funcionando correctamente',
+    endpoints: {
+      health: 'GET /health',
+      leads: 'POST /api/leads'
+    },
+    timestamp: new Date().toISOString()
+  });
 });
 
-// Inicia el servidor.
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    message: 'TU Dealer Amigo Backend funcionando perfectamente',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Endpoint para recibir leads
+app.post('/api/leads', (req, res) => {
+  console.log('Lead recibido:', req.body);
+  
+  const { name, phone, email, interest, source, timestamp } = req.body;
+  
+  // Validación básica
+  if (!name || !phone) {
+    return res.status(400).json({
+      success: false,
+      message: 'Nombre y teléfono son requeridos',
+      error: 'Missing required fields'
+    });
+  }
+  
+  // Log del lead para seguimiento
+  console.log(`
+    ===== NUEVO LEAD =====
+    Nombre: ${name}
+    Teléfono: ${phone}
+    Email: ${email || 'No proporcionado'}
+    Interés: ${interest || 'No especificado'}
+    Fuente: ${source || 'No especificada'}
+    Fecha: ${timestamp || new Date().toISOString()}
+    ======================
+  `);
+  
+  res.status(200).json({
+    success: true,
+    message: 'Lead recibido exitosamente',
+    data: { 
+      name, 
+      phone, 
+      email: email || null,
+      interest: interest || null,
+      received_at: new Date().toISOString()
+    }
+  });
+});
+
+// Endpoint alternativo para leads (por si acaso)
+app.post('/leads', (req, res) => {
+  // Redirigir a la ruta principal
+  req.url = '/api/leads';
+  app._router.handle(req, res);
+});
+
+// Manejo de rutas no encontradas
+app.use('*', (req, res) => {
+  res.status(404).json({
+    error: 'Endpoint no encontrado',
+    message: 'Verifica la URL y el método HTTP',
+    available_endpoints: {
+      'GET /': 'Info de la API',
+      'GET /health': 'Health check',
+      'POST /api/leads': 'Recibir lead',
+      'POST /leads': 'Recibir lead (alternativo)'
+    }
+  });
+});
+
+// Manejo de errores
+app.use((error, req, res, next) => {
+  console.error('Error:', error);
+  res.status(500).json({
+    error: 'Error interno del servidor',
+    message: 'Algo salió mal, intenta de nuevo'
+  });
+});
+
 app.listen(PORT, () => {
-  console.log(`Servidor escuchando en http://localhost:${PORT}`);
+  console.log(`🚗 TU Dealer Amigo Backend corriendo en puerto ${PORT}`);
+  console.log(`📡 Endpoints disponibles:`);
+  console.log(`   GET  / - Info de la API`);
+  console.log(`   GET  /health - Health check`);
+  console.log(`   POST /api/leads - Recibir leads`);
 });
+
+module.exports = app;
